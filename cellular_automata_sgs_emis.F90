@@ -71,7 +71,7 @@ contains
     integer(8) :: count, count_rate, count_max, count_trunc
     integer(8) :: iscale = 10000000000
     integer, allocatable :: iini(:,:,:),ilives(:,:,:),iini_g(:,:,:),ilives_g(:,:),ca_plumes(:,:), vegtype(:,:)
-    real(kind=kind_phys), allocatable :: field_out(:,:,:), field_in(:,:),field_smooth(:,:),Detfield(:,:,:)
+    real(kind=kind_phys), allocatable :: field_out(:,:,:),field_smooth(:,:),Detfield(:,:,:)
     real(kind=kind_phys), allocatable :: omega(:,:,:),pressure(:,:,:),cloud(:,:),humidity(:,:),uwind(:,:),vwind(:,:)
     real(kind=kind_phys), allocatable :: vertvelsum(:,:),vertvelmean(:,:),dp(:,:,:),surfp(:,:),shalp(:,:),gamt(:,:)
     real(kind=kind_phys), allocatable :: CA(:,:),condition(:,:),rho(:,:),conditiongrid(:,:)
@@ -154,7 +154,6 @@ contains
     allocate(surfp(nlon,nlat))
     allocate(vertvelmean(nlon,nlat))
     allocate(vertvelsum(nlon,nlat))
-    allocate(field_in(nlon*nlat,1))
     allocate(field_out(isize,jsize,1))
     allocate(field_smooth(nlon,nlat))
     allocate(iini(nxc,nyc,nca))
@@ -199,7 +198,6 @@ contains
     Detmax(:)=0.
     Detmin(:)=0.
 
-    field_in=0
     field_out=0
     field_smooth=0
 
@@ -328,12 +326,16 @@ contains
         call set_condition(ca_emis_seas_cpl,.false.)
       endif
 
-      !Calculate neighbours and update the automata
-      !If ca-global is used, then nca independent CAs are called and weighted together to create one field; CA
-
-      call update_cells_sgs(kstep,nca,nxc,nyc,nxch,nych,nlon,nlat,isc,iec,jsc,jec, &
-           npx,npy,domain_for_coupler,CA,ca_plumes,iini,ilives,        &
-           nlives,ncells,nfracseed,nseed,nthresh,nspinup,nf,nca_plumes)
+! DH* COMMENTING OUT BECAUSE THE CODE HAS CHANGED SIGNIFICANTLY AND NONE OF THE CHANGES THERE OR HERE ARE MINE
+!
+!      !Calculate neighbours and update the automata
+!      !If ca-global is used, then nca independent CAs are called and weighted together to create one field; CA
+!
+!      call update_cells_sgs(kstep,nca,nxc,nyc,nxch,nych,nlon,nlat,isc,iec,jsc,jec, &
+!           npx,npy,domain_for_coupler,CA,ca_plumes,iini,ilives,        &
+!           nlives,ncells,nfracseed,nseed,nthresh,nspinup,nf,nca_plumes)
+!
+! *DH
 
       if(nf==1)then
         CA_EMIS_PLUME(:,:)=CA(:,:)/nlives
@@ -399,7 +401,6 @@ contains
     deallocate(surfp)
     deallocate(vertvelmean)
     deallocate(vertvelsum)
-    deallocate(field_in)
     deallocate(field_out)
     deallocate(field_smooth)
     deallocate(iini)
@@ -521,11 +522,13 @@ contains
         do ix = 1, Atm_block%blksz(blk)
           i = Atm_block%index(blk)%ii(ix) - isc + 1
           j = Atm_block%index(blk)%jj(ix) - jsc + 1
-          field_in(i+(j-1)*nlon,1)=ca_in(blk,ix)
+          ih=i+halo
+          jh=j+halo
+          field_out(ih,jh,1) = ca_in(blk,ix)
         enddo
       enddo
 
-      call atmosphere_scalar_field_halo(field_out,halo,isize,jsize,k_in,field_in,isc,iec,jsc,jec,npx,npy,domain_for_coupler)
+      call atmosphere_scalar_field_halo(field_out,halo,isize,jsize,k_in,isc,iec,jsc,jec,npx,npy,domain_for_coupler)
 
       condmax=0
       do blk = 1,Atm_block%nblks
